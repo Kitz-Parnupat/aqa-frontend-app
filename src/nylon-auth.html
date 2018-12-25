@@ -1,0 +1,163 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/jwt-decode/jwt-decode.html">
+
+<link rel="import" href="./redux-mixin.html">
+<link rel="import" href="./nylon-redux.html">
+
+<script>
+  class NylonAuth extends Polymer.Element {
+
+    static get is() { return 'nylon-auth'; }
+    static get template() {
+      return Polymer.html`
+        <iframe id="authIframe" src="[[_url(path)]]" style="position: absolute; width: 1px; height: 1px; left: -9999px; display: none;" on-error="testza"></iframe>
+      `
+    }
+
+    static get properties() {
+      return {
+        baseUrl: {
+          type: String,
+          //value: 'http://user-api.onesqa.com/api/auth'
+          value: function(){
+            return Nylon.apiURL.auth
+          }
+        },
+        path: {
+          type: String,
+          value: "/silent"
+        },
+        userInfo: {
+          notify: true,
+          type: Object,
+          value: function(){
+            return {}
+          }
+        },
+        disabled: Boolean,
+        testx: {
+          type: String,
+          value: 'testx'
+        }
+      }
+    }
+
+    ready() {
+      
+      super.ready()
+      window.addEventListener("message", (e) => this._message(e), false);
+      if(this.disabled){
+        this.dispatchEvent(new CustomEvent('disabled'));
+      }
+     
+    }
+
+    
+
+    _message(event) {
+      // console.log(event)
+      if (event.origin+"/api/auth" != Nylon.apiURL.auth) return;
+
+      let topic;
+      if(event.data==null)
+        return;
+
+      switch (event.data.action) {
+        case 'auth':
+        
+
+          this.status = 'auth';
+
+          // this.token = this.getParameterByName('accessToken',event.data)
+          // axios.defaults.headers.common['Authorization'] = this.token
+          this.token = event.data.token
+          axios.defaults.headers.common['Authorization'] = this.token
+
+          window.token = this.token
+
+          this.userInfo = jwt_decode(this.token)
+          this.dispatchEvent(new CustomEvent('auth', {detail: this.userInfo}));
+
+          // console.log(event.data.authorization)
+
+          // this.payload = jwt_decode(this.getParameterByName('payload',event.data))
+          this.payload = event.data.authorization
+
+          Nylon.dispatch('nylonSetUser',this.userInfo,this.payload || {})
+          
+          break;
+        case 'noauth':
+          
+            this.status = 'noauth';
+
+            axios.defaults.headers.common['Authorization'] = ''
+            window.token = ''
+            this.dispatchEvent(new CustomEvent('noauth'));
+            break;
+        default:
+            //console.log('xx')
+      }
+
+    }
+
+    checkRule(detail) {
+      let elementName = detail.element.localName
+
+      if(elementName=="page-401" && detail.ctx.gotoPage==undefined ){
+        detail.ctx.gotoPage = 'page-404'
+        detail.next()
+        return;
+      }
+
+      
+      if(!detail.ctx.gotoPage){
+
+        if(this.status=="auth"){
+          console.log(this.payload)
+          console.log(detail.rule)
+          // *****
+
+          // if(this.payload.pathRule[detail.rule]!=undefined || detail.rule==""){
+          //   detail.pass()
+          // }else{
+          //   detail.ctx.gotoPage = 'page-403'
+          //   detail.next()
+          // }
+
+          // *****
+
+          detail.pass()
+
+        } else {
+          detail.ctx.gotoPage = 'page-401'
+          detail.next()
+        }
+        
+      }else{
+        if(elementName == detail.ctx.gotoPage){
+          detail.pass()
+        }else{
+          detail.next()
+        }
+      }
+
+    }
+
+    _url(path) {
+      return this.baseUrl + this.path
+    }
+
+
+    getParameterByName(name, url) {
+        if (!url) url = window.location.href;
+        name = name.replace(/[\[\]]/g, "\\$&");
+        var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+            results = regex.exec(url);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, " "));
+    }
+  }
+
+  window.customElements.define(NylonAuth.is, NylonAuth);
+</script>

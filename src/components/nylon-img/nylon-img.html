@@ -1,0 +1,88 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+
+<dom-module id="nylon-img">
+    <template>
+        <style>
+            img{
+                width: 100%;
+            }
+            .round{
+                width: 120px;
+                height: 120px;
+                float: left;
+                margin-right: 0.5rem;
+                border-radius: 50%;
+                background-color: #ddd;
+            }
+        </style>
+        <img class$="[[className]]" id="showImg" src="[[src]]">
+    </template>
+
+    <script>
+       
+        class NylonImg extends Polymer.Element {
+          
+            static get is() {
+                return 'nylon-img';
+            }
+
+            static get properties() {
+                return {
+                    src:{
+                        type:String,
+                        value:"../../../images/loading2.gif"
+                    },
+                    isLoading:{
+                        type:Boolean,
+                        value:true
+                    },
+                    path:{
+                        type:String,
+                        value:"",
+                        observer:'renderImg'
+                    },
+                    className:{
+                        type:String,
+                        value:""
+                    }
+                };
+            }
+            renderImg(val){
+                this.isLoading = true
+                axios.get(Nylon.apiURL.file+'/file/files',{
+                    params:{
+                        refer:this.path
+                    }
+                })
+                .then((response)=>{
+                    console.log('success!!');
+                    console.log(response.data.data);
+                    this._renderImg(response.data.data[0].file_info_id)
+                })
+                .catch((error)=>{
+                    this.isLoading = false
+                    console.log('error');
+                    console.log(error);
+                });
+            }
+            _renderImg(val){
+                // console.log(val)
+                axios.get(Nylon.apiURL.file + "/file/files/" + val,{
+                    responseType: 'blob'
+                })
+                .then((res)=>{
+                    // this.hasImg = false
+                    // console.log('ss',res.data)
+                    this.isLoading = false
+                    const url = window.URL.createObjectURL(new Blob([res.data]))
+                    this.$.showImg.setAttribute('src',url)
+                })
+                .catch((err)=>{
+                    this.isLoading = false
+                })
+            }
+        }
+
+        window.customElements.define(NylonImg.is, NylonImg);
+    </script>
+</dom-module>

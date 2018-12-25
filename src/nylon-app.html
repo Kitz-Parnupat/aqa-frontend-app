@@ -1,0 +1,171 @@
+<script>
+  window.Nylon = window.Nylon || { $: {} }
+
+</script>
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/polymer/lib/elements/dom-if.html">
+<link rel="import" href="../bower_components/aqa-sweet-alert/aqa-sweet-alert.html">
+<link rel="import" href="./nylon-axios.html">
+<link rel="import" href="./redux-mixin.html">
+<link rel="import" href="./nylon-init.html">
+<link rel="import" href="./nylon-auth.html">
+
+<dom-module id="nylon-app">
+  <template>
+    <nylon-auth id="nylonAuth" on-auth="_auth" on-noauth="_noauth" on-disabled="_authDisable"></nylon-auth>
+    <template id="domIfNylonInit" is="dom-if">
+      <nylon-init id="nylonInit" path-name="[[pathName]]" on-ready="_nylonInitReady">
+        <slot name="recaptcha" slot="recaptcha"></slot>
+      </nylon-init>
+    </template>
+  </template>
+
+  <script>
+    class NylonApp extends ReduxMixin(Polymer.Element) {
+
+      static get is() { return 'nylon-app'; }
+
+      static get properties() {
+        return {
+          pathName: {
+            type: String,
+            value: "/"
+          }
+        }
+      }
+
+     
+      _nylonInitReady(){
+        this.$.nylonInit = this.shadowRoot.getElementById('nylonInit')
+        //Set redirect page of nylon-pages to global
+        Nylon.redirect = this.$.nylonInit.$.nylonPage.redirect
+        Nylon.page = this.$.nylonInit.$.nylonPage.redirect
+
+        //Listener change page
+
+        this.$.nylonInit.addEventListener(
+          'nylon-pages-changed',
+          e => this._pageChanged(e)
+        )
+
+        this.$.nylonInit.addEventListener(
+          'nylon-pages-rule',
+          e => this.$.nylonAuth.checkRule(e.detail)
+        )
+
+        this.$.nylonInit.$.nylonDialog.addEventListener(
+          'nylon-dialog-changed',
+          e => this._dialogChanged(e)
+        )
+      }
+
+
+      _pageChanged(e) {
+        
+
+        this.$.nylonInit.$.layoutMain.topic = ""
+        let elementName = e.detail.element.localName
+        let pathFile = e.detail.element.getAttribute('path-file');
+        let resolvedUrl = this.resolveUrl(`pages/${elementName}/${elementName}`+'.html');
+
+        if(pathFile){
+          resolvedUrl = this.resolveUrl(pathFile);
+        }
+
+        this.pathName = e.detail.ctx.pathname
+        Polymer.importHref(
+          resolvedUrl,
+          () => {
+            if (!Nylon.$[elementName])
+              Nylon.$[elementName] = e.detail.element
+
+            this.pathName = e.detail.ctx.pathname
+            
+            e.detail.active()
+
+            //topic and navigate
+            this.$.nylonInit.$.layoutMain.topic = e.detail.element.getAttribute('topic')
+            let nav = this.$.nylonInit.navigation[e.detail.element.localName]
+            if(nav){
+              this.$.nylonInit.$.layoutMain.navigation = JSON.parse(JSON.stringify(nav))
+            }
+
+          },
+          () => {
+            console.log('import error')
+          },
+          true);
+      }
+
+      _dialogChanged(e){
+
+        let elementName = e.detail.element.localName
+        let pathFile = e.detail.element.getAttribute('path-file');
+        let resolvedUrl = this.resolveUrl('pages/'+elementName+'/'+elementName+'.html');
+
+        if(pathFile){
+          resolvedUrl = this.resolveUrl(pathFile);
+        }
+
+         Polymer.importHref(
+          resolvedUrl,
+          () => {
+            e.detail.pass()
+            // console.log('import success')
+          },
+          () => {
+            console.log('import error')
+          },
+          true);
+
+
+      }
+
+
+
+      _pageRule(e) {
+        console.log("sss")
+        try {
+          var np = e.detail
+          var element = np.element
+          var elementName = element.localName;
+          if (np.ctx.gotoPage) {
+            if (elementName == 'page-401' && np.ctx.gotoPage == '401')
+              np.pass()
+          } else {
+            if (localStorage.token) {
+              Nylon.dispatch('authVerifyToken')
+
+              np.pass()
+
+            } else {
+              np.ctx.gotoPage = '401'
+              np.next()
+            }
+
+          }
+        } catch (e) {
+          console.log(e);
+        }
+
+
+      }
+
+
+      _auth(e){
+        this.$.domIfNylonInit.if = true
+      }
+
+      _noauth(e){
+        this.$.domIfNylonInit.if = true
+      }
+
+      _authDisable(){
+        this.$.domIfNylonInit.if = true
+      }
+
+    }
+
+    window.customElements.define(NylonApp.is, NylonApp);
+  </script>
+</dom-module>

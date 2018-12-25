@@ -1,0 +1,184 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../../bower_components/aqa-styles/aqa-styles.html">
+<link rel="import" href="../../../bower_components/aqa-button/aqa-button.html">
+<link rel="import" href="../../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../../bower_components/aqa-icons/aqa-icon-tool.html">
+<link rel="import" href="../../../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../../../bower_components/aqa-button/aqa-button.html">
+<dom-module id="aqa-file-upload">
+    <template>
+        <style include="aqa-styles">
+          
+        </style>
+          <div class="row">
+            <div class="col-xs-12 col-sm-4" style="margin:auto 0">[[label]]</div>
+            <div class="col-xs-12 col-sm-8 end-xs">
+                <input type="file" id="file" accept=".xls, .xlsx, .docx, .doc, .pdf" hidden on-change="getFile">
+                <template is="dom-if" if="[[!readonly]]">
+                    <aqa-button type="primary" on-click="activeFile" hidden="[[active]]">upload</aqa-button>
+                </template>
+                <span hidden="[[!active]]">กำลังอัพโหลด...</span>
+                <template is="dom-if" if="[[autoRender]]">
+                    <aqa-button type="primary-outline" on-click="renderFile">แสดงรายชื่อไฟล์</aqa-button>
+                </template>
+            </div>
+        </div>
+        <hr>
+        <template is="dom-if" if="[[isLoad]]">
+            loading...
+        </template>
+        <div class="row" style="padding:0.5rem">
+            <template is="dom-repeat" items="[[items]]">   
+                <div class="col-xs-12 col-sm-6">
+                    [[item.Name]]
+                </div>
+                <div class="col-xs-12 col-sm-6 end-xs">
+                    <paper-icon-button on-click="downloadFile" icon="icons:get-app"></paper-icon-button>
+                    <template is="dom-if" if="[[!readonly]]">
+                        <paper-icon-button on-click="deleteFile" icon="aqa-tool:bin"></paper-icon-button>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <script>
+      
+        class AqaFileUpload extends Polymer.Element {
+            
+            static get is() {
+                return 'aqa-file-upload';
+            }
+
+            static get properties() {
+                return {
+                    label:{
+                        type:String,
+                        value:""
+                    },
+                    items:{
+                        type:Array,
+                        value:[]
+                    },
+                    isLoad:{
+                        type:Boolean,
+                        value:false
+                    },
+                    // data:{
+                    //     type:Object,
+                    //     value:{}
+                    // },
+                    // type:{
+                    //     type:String,
+                    //     value:''
+                    // },
+                    active:{
+                        type:Boolean,
+                        value:false
+                    },
+                    refer:{
+                        type:String,
+                        value:'',
+                        observer: 'renderFile'
+                    },
+                    readonly:{
+                        type:Boolean,
+                        value:false
+                    },
+                    autoRender:{
+                        type:Boolean,
+                        value:false
+                    },
+                    disabled:{
+                        type:Boolean,
+                        value:false
+                    }
+                };
+            }
+            ready(){
+                super.ready()
+                if(!this.autoRender) this.renderFile()
+            }
+            activeFile(){
+                this.$.file.click()
+            } 
+            deleteFile(e){
+                Nylon.swal({nylon:'confirm',title:'คุณต้องการลบไฟล์ใช่ไหม ?',text:' '})
+                .then((res)=>{
+                    if(res){
+                        axios.delete(Nylon.apiURL.file+'/file/files/'+e.model.item.file_info_id)
+                        .then((response)=>{
+                            Nylon.swal({nylon:'success',text:'ระบบได้ลบไฟล์ของคุณแล้ว'})
+                            this.renderFile()
+                        })
+                        .catch((error)=>{
+                            console.log('error');
+                            console.log(error);
+                        })
+                    }
+                })
+            }
+            downloadFile(e){
+                axios.get(Nylon.apiURL.file+'/file/files/'+e.model.item.file_info_id,{
+                    responseType: 'blob'
+                })
+                .then((res)=>{
+                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', e.model.item.Name);
+                    // e.target.appendChild(link);
+                    link.click();
+                    link.remove();
+                })
+                .catch((error)=>{
+                    console.log('error');
+                    console.log(error);
+                });
+            }
+            renderFile(){
+                this.isLoad = true
+                this.items = []
+                axios.get(Nylon.apiURL.file+'/file/files',{
+                    params:{
+                        refer:this.refer
+                    }
+                })
+                .then((response)=>{
+                    // console.log('success!!');
+                    // console.log(response.data);
+                    this.items = response.data.data
+                    this.isLoad = false
+                })
+                .catch((error)=>{
+                    console.log('error');
+                    console.log(error);
+                });
+            }
+            getFile(e){
+                let file = e.target.files[0]
+                let formData = new FormData()
+                formData.append("refer", this.refer);
+                formData.append("files", file)
+                // this.dispatchEvent(new CustomEvent('upload-complete', {detail: {complete:true}}));
+                this.active = true
+                axios.post(Nylon.apiURL.file + "/file/files",formData)
+                .then((response)=>{
+                    // console.log('success!!');
+                    // console.log(response.data);
+                    this.active = false
+                    this.dispatchEvent(new CustomEvent('upload-complete', {detail: {complete:true}}));
+                    this.renderFile()
+                })
+                .catch((error)=>{
+                    console.log('error');
+                    this.active = false
+                    console.log({error});
+                });
+            }
+
+        }
+
+        window.customElements.define(AqaFileUpload.is, AqaFileUpload);
+    </script>
+</dom-module>
